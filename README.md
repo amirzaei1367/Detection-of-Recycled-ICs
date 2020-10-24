@@ -1,5 +1,5 @@
-# Detection-of-Recycled-ICs
-Using a stack-model to identify a target chip as new or recycled.
+# Trojan Detection
+Using a stack-model to identify whether a trojan has been inserted into an IC at manufacturing time or not.
 
 ### How it works: ###
 Just set the path for root directory **root_path**, and set the name of input file **in_file** and a file name for storing statistics of the used model **res_file**.  
