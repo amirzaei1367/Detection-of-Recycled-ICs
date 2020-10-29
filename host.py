@@ -30,7 +30,7 @@ from sklearn.decomposition import PCA
 from sklearn.externals import joblib
 
 # Stacking
-from Stacker import *
+# from Stacker import *
 
 import numpy as np
 RANDOM_SEED = 42
@@ -68,98 +68,162 @@ stack = StackingCVRegressor(regressors=(ridge, lasso, rf, xgb, enet, mlp),
                             meta_regressor=lasso, verbose=1,
                             n_jobs=2, use_features_in_secondary=True)
 
-df = pd.read_csv(root_path + in_file, index_col='index')
-# ageing only
-# df.rename(columns = {'SPICE1':'label'}, inplace = True)
-results = []
-for i in range(6):
-    # for i in [0]:
-    if i == 0:
-        data = df[(df['status'] == 'train')]
-    if i == 1:
-        data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10')]
-    if i == 2:
-        data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
-                  (df['status'] == 'train_HT_20')]
-    if i == 3:
-        data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
-                  (df['status'] == 'train_HT_20') | (df['status'] == 'train_HT_30')]
-    if i == 4:
-        data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
-                  (df['status'] == 'train_HT_20') | (df['status'] == 'train_HT_30') |
-                  (df['status'] == 'train_HT_40')]
-    if i == 5:
-        data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
-                  (df['status'] == 'train_HT_20') | (df['status'] == 'train_HT_30') |
-                  (df['status'] == 'train_HT_40') | (df['status'] == 'train_HT_50')]
+# clf_label_zip = zip([ ridge, lasso, rf, xgb, mlp, stack], ['Ridge', 'Lasso','Random Forest', 'xgb',
+#                                                                           'mlp', 'StackingClassifier'])
 
-    data.drop(columns=['info', 'path_number', 'GTM', 'SPICE_nt'], axis=1, inplace=True)
-    col_list = list(data.columns)
-    col_list.remove('label')
-    col_list.remove('status')
-    zero_idx = np.isclose(data[col_list].sum(axis=0), 0)
-    data.drop(columns=list(data[col_list].columns[zero_idx]), axis=1, inplace=True)
+clf_label_zip = [(ridge, 'Ridge'), (lasso, 'Lasso')]
+def get_statistic():
+    df = pd.read_csv(root_path + in_file, index_col='index')
+    # ageing only
+    # df.rename(columns = {'SPICE1':'label'}, inplace = True)
+    # pred_results = []
+    results = []
+    for i in range(6):
+        # for i in [0]:
+        if i == 0:
+            data = df[(df['status'] == 'train')]
+        if i == 1:
+            data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10')]
+        if i == 2:
+            data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
+                      (df['status'] == 'train_HT_20')]
+        if i == 3:
+            data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
+                      (df['status'] == 'train_HT_20') | (df['status'] == 'train_HT_30')]
+        if i == 4:
+            data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
+                      (df['status'] == 'train_HT_20') | (df['status'] == 'train_HT_30') |
+                      (df['status'] == 'train_HT_40')]
+        if i == 5:
+            data = df[(df['status'] == 'train') | (df['status'] == 'train_HT_10') |
+                      (df['status'] == 'train_HT_20') | (df['status'] == 'train_HT_30') |
+                      (df['status'] == 'train_HT_40') | (df['status'] == 'train_HT_50')]
 
-    col_list = list(data.columns)
-    col_list.remove('label')
-    col_list.remove('status')
-    data[col_list] = data[col_list].apply(lambda x: (x - x.mean()) / (x.std()))
+        data.drop(columns=['info', 'path_number', 'GTM', 'SPICE_nt'], axis=1, inplace=True)
+        col_list = list(data.columns)
+        col_list.remove('label')
+        col_list.remove('status')
+        zero_idx = np.isclose(data[col_list].sum(axis=0), 0)
+        data.drop(columns=list(data[col_list].columns[zero_idx]), axis=1, inplace=True)
 
-    train, test = train_test_split(data, test_size=0.2, random_state=SEED)
-    y_train = train['label']
-    X_train = train.drop(columns=['label', 'status'], axis=1)
+        col_list = list(data.columns)
+        col_list.remove('label')
+        col_list.remove('status')
+        data[col_list] = data[col_list].apply(lambda x: (x - x.mean()) / (x.std()))
 
-    test.drop(test[test['status'] != 'train'].index, axis=0, inplace=True)
-    y_test = test['label']
-    X_test = test.drop(columns=['label', 'status'], axis=1)
+        train, test = train_test_split(data, test_size=0.2, random_state=SEED)
+        y_train = train['label']
+        X_train = train.drop(columns=['label', 'status'], axis=1)
 
-    ## runing the neural models
-    result = {}
-    for clf, label in zip([stack], ['StackingClassifier']):
-        print('-' * 20)
-        print('{}:{}'.format(i, label))
-        clf.fit(X_train, y_train)
-        pred_train = clf.predict(X_train)
-        pred_test = clf.predict(X_test)
+        test.drop(test[test['status'] != 'train'].index, axis=0, inplace=True)
+        y_test = test['label']
+        X_test = test.drop(columns=['label', 'status'], axis=1)
 
-        mean_test = np.mean(pred_test - y_test)
-        std_test = np.std(pred_test - y_test)
-        mean_train = np.mean(pred_train - y_train)
-        std_train = np.std(pred_train - y_train)
+        ## runing the neural models
+        # pred_result = {}
+        result = {}
+        # for clf, label in zip([ridge], ['Ridge']):
+        for clf, label in clf_label_zip:
+            print('-' * 20)
+            print('{}:{}'.format(i, label))
+            clf.fit(X_train, y_train)
+            pred_train = clf.predict(X_train)
+            pred_test = clf.predict(X_test)
 
-        result['trj_n'] = i * 10
-        result['mean_test'] = mean_test
-        result['mean_train'] = mean_train
-        result['std_test'] = std_test
-        result['std_train'] = std_train
-        result['clf'] = label
+            mean_test = np.mean(pred_test - y_test)
+            std_test = np.std(pred_test - y_test)
+            mean_train = np.mean(pred_train - y_train)
+            std_train = np.std(pred_train - y_train)
 
-        results.append(result.copy())
+            result['trj_n'] = i * 10
+            result['mean_test'] = mean_test
+            result['mean_train'] = mean_train
+            result['std_test'] = std_test
+            result['std_train'] = std_train
+            result['clf'] = label
 
-    #     for clf, label in zip([ ridge, lasso, rf, xgb, mlp, stack], ['Ridge', 'Lasso',
-    #                                                                  'Random Forest', 'xgb',
-    #                                                                  'mlp', 'StackingClassifier']):
-    #         print('-'*20)
-    #         print('{}:{}'.format(i, label))
-    #         clf.fit(X_train, y_train)
-    #         pred_train = clf.predict(X_train)
-    #         pred_test = clf.predict(X_test)
+            results.append(result.copy())
 
-    #         mean_test = np.mean(pred_test-y_test)
-    #         std_test = np.std(pred_test-y_test)
-    #         mean_train = np.mean(pred_train-y_train)
-    #         std_train = np.std(pred_train-y_train)
+        #     for clf, label in zip([ ridge, lasso, rf, xgb, mlp, stack], ['Ridge', 'Lasso',
+        #                                                                  'Random Forest', 'xgb',
+        #                                                                  'mlp', 'StackingClassifier']):
+        #         print('-'*20)
+        #         print('{}:{}'.format(i, label))
+        #         clf.fit(X_train, y_train)
+        #         pred_train = clf.predict(X_train)
+        #         pred_test = clf.predict(X_test)
 
-    #         result['trj_n'] = i*10
-    #         result['mean_test'] = mean_test
-    #         result['mean_train'] = mean_train
-    #         result['std_test'] = std_test
-    #         result['std_train'] = std_train
-    #         result['clf'] = label
+        #         mean_test = np.mean(pred_test-y_test)
+        #         std_test = np.std(pred_test-y_test)
+        #         mean_train = np.mean(pred_train-y_train)
+        #         std_train = np.std(pred_train-y_train)
 
-    #         results.append(result.copy())
+        #         result['trj_n'] = i*10
+        #         result['mean_test'] = mean_test
+        #         result['mean_train'] = mean_train
+        #         result['std_test'] = std_test
+        #         result['std_train'] = std_train
+        #         result['clf'] = label
 
-    joblib.dump(stack, root_path + 'stack_{}.pkl'.format(i))
+        #         results.append(result.copy())
 
-results_pd = pd.DataFrame(results)
-results_pd.to_csv(root_path + res_file)
+            joblib.dump(clf, root_path + '{}_{}.pkl'.format(label, i))
+
+    results_pd = pd.DataFrame(results)
+    results_pd.to_csv(root_path + res_file)
+
+def get_predictions():
+
+    pred_results = {}
+    for i in range(6):
+        df = pd.read_csv(root_path + in_file, index_col='index')
+        # df_temp = df[['label', 'status']]
+        df_temp = df.copy()
+        df.drop(columns=['label', 'info', 'status', 'path_number', 'GTM', 'SPICE_nt'], axis=1, inplace=True)
+        zero_idx = np.isclose(df.sum(axis=0), 0)
+        df.drop(columns=list(df.columns[zero_idx]), axis=1, inplace=True)
+
+        # for i in [0]:
+        if i == 0:
+            df_ht0 = df_temp[(df_temp['status'] == 'train')]
+            df = df.apply(lambda x: (x - df_ht0[x.name].mean()) / (df_ht0[x.name].std()))
+
+        if i == 1:
+            df_ht10 = df_temp[(df_temp['status'] == 'train') | (df_temp['status'] == 'train_HT_10')]
+            df = df.apply(lambda x: (x - df_ht10[x.name].mean()) / (df_ht10[x.name].std()))
+
+        if i == 2:
+            df_ht20 = df_temp[(df_temp['status'] == 'train') | (df_temp['status'] == 'train_HT_10') |
+                              (df_temp['status'] == 'train_HT_20')]
+            df = df.apply(lambda x: (x - df_ht20[x.name].mean()) / (df_ht20[x.name].std()))
+
+        if i == 3:
+            df_ht30 = df_temp[(df_temp['status'] == 'train') | (df_temp['status'] == 'train_HT_10') |
+                              (df_temp['status'] == 'train_HT_20') | (df_temp['status'] == 'train_HT_30')]
+            df = df.apply(lambda x: (x - df_ht30[x.name].mean()) / (df_ht30[x.name].std()))
+
+        if i == 4:
+            df_ht40 = df_temp[(df_temp['status'] == 'train') | (df_temp['status'] == 'train_HT_10') |
+                              (df_temp['status'] == 'train_HT_20') | (df_temp['status'] == 'train_HT_30') |
+                              (df_temp['status'] == 'train_HT_40')]
+            df = df.apply(lambda x: (x - df_ht40[x.name].mean()) / (df_ht40[x.name].std()))
+        if i == 5:
+            df_ht50 = df_temp[(df_temp['status'] == 'train') | (df_temp['status'] == 'train_HT_10') |
+                              (df_temp['status'] == 'train_HT_20') | (df_temp['status'] == 'train_HT_30') |
+                              (df_temp['status'] == 'train_HT_40') | (df_temp['status'] == 'train_HT_50')]
+            df = df.apply(lambda x: (x - df_ht50[x.name].mean()) / (df_ht50[x.name].std()))
+
+        temp = {}
+        # for clf, label in zip([ridge], ['Ridge']):
+        for clf, label in clf_label_zip:
+            stacking = joblib.load(root_path + '{}_{}.pkl'.format(label, i))
+            temp['{}_ht_{}'.format(label, i * 10)] = list(stacking.predict(df))
+            pred_results.update(temp.copy())
+            # print(temp)
+            # break
+    df = df.join(pd.DataFrame(pred_results))
+    df = df.join(df_temp[['label', 'status']])
+    df.to_csv(root_path + out_file)
+
+get_statistic()
+get_predictions()
